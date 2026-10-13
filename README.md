@@ -32,7 +32,7 @@ Linux. Check Docker Desktop's license separately if choosing it; it is not a
 required dependency.
 
 ```console
-git clone https://github.com/primaurya_microsoft/text-harbor.git
+git clone https://github.com/PoojaAgarwal2003/text-harbor.git
 cd text-harbor
 podman compose up --build
 ```
@@ -262,9 +262,9 @@ Do not advertise this local release as a production-hardened public SaaS.
 ## Project milestones
 
 1. Repository and dependency foundation.
-2. [M1: extraction backend](https://github.com/primaurya_microsoft/text-harbor/milestone/1).
-3. [M2: React workspace](https://github.com/primaurya_microsoft/text-harbor/milestone/2).
-4. [M3: verified local release](https://github.com/primaurya_microsoft/text-harbor/milestone/3).
+2. [M1: extraction backend](https://github.com/PoojaAgarwal2003/text-harbor/milestone/1).
+3. [M2: React workspace](https://github.com/PoojaAgarwal2003/text-harbor/milestone/2).
+4. [M3: verified local release](https://github.com/PoojaAgarwal2003/text-harbor/milestone/3).
 
 See the Git history for the incremental implementation commits.
 
