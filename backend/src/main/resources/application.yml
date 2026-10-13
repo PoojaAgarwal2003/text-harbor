@@ -1,0 +1,28 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: text-harbor
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 26MB
+      file-size-threshold: 0
+  jackson:
+    default-property-inclusion: non_null
+extraction:
+  storage: ${TEXT_HARBOR_STORAGE:./.data}
+  workers: 2
+  queue-capacity: 8
+  max-upload-bytes: 26214400
+  max-chars: 1000000
+  max-embedded: 100
+  max-pages: 200
+  timeout-seconds: 120
+  retention-minutes: 60
+  max-stored-jobs: 100
+  tesseract-path: ${TESSERACT_PATH:}
