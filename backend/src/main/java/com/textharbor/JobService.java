@@ -53,6 +53,9 @@ public class JobService {
         this.worker = worker;
         storage = properties.storage().toAbsolutePath().normalize();
         Files.createDirectories(storage);
+        if (Files.getFileStore(storage).supportsFileAttributeView("posix")) {
+            Files.setPosixFilePermissions(storage, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        }
         executor = new ThreadPoolExecutor(properties.workers(), properties.workers(),
                 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(properties.queueCapacity()),
                 Thread.ofPlatform().name("extraction-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
@@ -300,5 +303,13 @@ public class JobService {
     public void close() {
         executor.shutdownNow();
         worker.stopAll();
+        try {
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                LOG.error("Extraction workers did not stop within the shutdown deadline.");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Interrupted while waiting for extraction workers to stop.");
+        }
     }
 }

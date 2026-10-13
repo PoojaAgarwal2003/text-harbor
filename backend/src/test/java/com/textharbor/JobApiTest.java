@@ -16,6 +16,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JobApiTest {
     private static final Path STORAGE;
     static {
@@ -45,7 +48,14 @@ class JobApiTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
+    @Autowired JobService jobs;
     @MockitoBean ForkedWorker worker;
+
+    @AfterAll
+    void cleanup() throws Exception {
+        jobs.close();
+        org.springframework.util.FileSystemUtils.deleteRecursively(STORAGE);
+    }
 
     @Test
     void completesJobWithTokenProtectedResultAndDeletion() throws Exception {

@@ -68,3 +68,15 @@ test('shows server validation errors and does not create a false completed job',
   expect(await screen.findByRole('status')).toHaveTextContent('Workers are busy')
   expect(screen.queryByLabelText('Extracted text')).not.toBeInTheDocument()
 })
+
+test('keeps every rejected filename visible when a batch contains multiple invalid files', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => respond(capabilities)))
+  render(<App />)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Browse files' })).toBeEnabled())
+  fireEvent.change(screen.getByLabelText('Choose files to extract'), {
+    target: { files: [new File([], 'empty.txt'), new File(['x'.repeat(1025)], 'oversized.txt')] },
+  })
+  const status = await screen.findByRole('status')
+  expect(status).toHaveTextContent('empty.txt')
+  expect(status).toHaveTextContent('oversized.txt')
+})

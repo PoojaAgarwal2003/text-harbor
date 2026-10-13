@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.imageio.ImageIO;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.apache.tika.exception.EncryptedDocumentException;
@@ -31,6 +32,7 @@ import org.xml.sax.ContentHandler;
 import org.xml.sax.SAXException;
 
 public final class ExtractionEngine {
+    private static final long MAX_IMAGE_PIXELS = 40_000_000;
     private ExtractionEngine() {}
 
     public static void runWorker(Path directory) throws IOException {
@@ -65,12 +67,23 @@ public final class ExtractionEngine {
                     if (pdf.getNumberOfPages() > request.maxPages()) {
                         return ExtractionResult.failure("PAGE_LIMIT", "PDF exceeds the configured page limit.");
                     }
+                    for (var page : pdf.getPages()) {
+                        var box = page.getCropBox();
+                        double pixels = (box.getWidth() * 300.0 / 72) * (box.getHeight() * 300.0 / 72);
+                        if (!Double.isFinite(pixels) || pixels <= 0 || pixels > MAX_IMAGE_PIXELS) {
+                            return ExtractionResult.failure("IMAGE_LIMIT", "PDF page dimensions exceed the safe rendering limit.");
+                        }
+                    }
                 }
             }
             boolean useOcr = request.ocrAvailable() && request.ocrMode() != OcrMode.NEVER;
             if (mediaType.startsWith("image/") && !mediaType.equals("image/svg+xml") && !useOcr) {
                 return ExtractionResult.failure("OCR_UNAVAILABLE",
                         "Image text requires OCR. Install Tesseract language data and enable OCR.");
+            }
+            if (mediaType.startsWith("image/") && !mediaType.equals("image/svg+xml")) {
+                ExtractionResult limit = validateImage(source, request.maxPages());
+                if (limit != null) return limit;
             }
             if (mediaType.equals("application/pdf") && !useOcr) {
                 warnings.add("OCR was disabled or unavailable. Scanned pages and image text may be missing.");
@@ -111,7 +124,13 @@ public final class ExtractionEngine {
                     delegate.parseEmbedded(stream, output, embedded, outputHtml);
                 }
             });
-            if (!parser.getSupportedTypes(context).contains(MediaType.parse(mediaType))) {
+            var supportedTypes = parser.getSupportedTypes(context);
+            var registry = parser.getMediaTypeRegistry();
+            MediaType supportedType = registry.normalize(MediaType.parse(mediaType));
+            while (supportedType != null && !supportedTypes.contains(supportedType)) {
+                supportedType = registry.getSupertype(supportedType);
+            }
+            if (supportedType == null) {
                 return ExtractionResult.failure("UNSUPPORTED_FORMAT",
                         "The file was detected, but no local text parser supports this format.");
             }
@@ -146,6 +165,35 @@ public final class ExtractionEngine {
 
     private static void addWarning(List<String> warnings, String warning) {
         if (!warnings.contains(warning)) warnings.add(warning);
+    }
+
+    private static ExtractionResult validateImage(Path source, int maxPages) throws IOException {
+        try (var stream = ImageIO.createImageInputStream(source.toFile())) {
+            if (stream == null) {
+                return ExtractionResult.failure("UNSUPPORTED_IMAGE", "Cannot inspect this image safely.");
+            }
+            var readers = ImageIO.getImageReaders(stream);
+            if (!readers.hasNext()) {
+                return ExtractionResult.failure("UNSUPPORTED_IMAGE", "No local decoder supports this image. Convert it to PNG, JPEG or TIFF.");
+            }
+            var reader = readers.next();
+            try {
+                reader.setInput(stream);
+                int frames = reader.getNumImages(true);
+                if (frames > maxPages) {
+                    return ExtractionResult.failure("PAGE_LIMIT", "Image frame count exceeds the configured page limit.");
+                }
+                for (int frame = 0; frame < Math.max(1, frames); frame++) {
+                    long pixels = (long) reader.getWidth(frame) * reader.getHeight(frame);
+                    if (pixels <= 0 || pixels > MAX_IMAGE_PIXELS) {
+                        return ExtractionResult.failure("IMAGE_LIMIT", "Image exceeds the 40-megapixel per-frame safety limit.");
+                    }
+                }
+            } finally {
+                reader.dispose();
+            }
+        }
+        return null;
     }
 
     private static boolean hasCause(Throwable error, Class<? extends Throwable> type) {

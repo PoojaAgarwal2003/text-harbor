@@ -30,8 +30,18 @@ public class ForkedWorker {
         if (cancelled.getAsBoolean()) {
             return ExtractionResult.failure("CANCELLED", "Extraction was cancelled.");
         }
+        Path temporary = Files.createTempDirectory("text-harbor-worker-");
+        try {
+            return executeProcess(id, directory, temporary, cancelled);
+        } finally {
+            org.springframework.util.FileSystemUtils.deleteRecursively(temporary);
+        }
+    }
+
+    private ExtractionResult executeProcess(String id, Path directory, Path temporary,
+            BooleanSupplier cancelled) throws IOException, InterruptedException {
         List<String> arguments = new ArrayList<>(List.of("-Xmx512m", "-Djava.awt.headless=true",
-                "-Djava.io.tmpdir=" + directory.resolve("tmp")));
+                "-Djava.io.tmpdir=" + temporary));
         Path app = new ApplicationHome(TextHarborApplication.class).getSource().toPath();
         if (Files.isRegularFile(app)) {
             arguments.addAll(List.of("-jar", app.toString()));
@@ -40,7 +50,6 @@ public class ForkedWorker {
                     TextHarborApplication.class.getName()));
         }
         arguments.addAll(List.of("--extraction-worker", directory.toString()));
-        Files.createDirectories(directory.resolve("tmp"));
         Path argumentFile = directory.resolve("worker.args");
         Files.write(argumentFile, arguments.stream()
                 .map(value -> "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"").toList());

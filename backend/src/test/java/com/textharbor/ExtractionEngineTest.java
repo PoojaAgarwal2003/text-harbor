@@ -81,6 +81,26 @@ class ExtractionEngineTest {
     }
 
     @Test
+    void extractsCommonTextEmailAndRichTextFormats() throws Exception {
+        String[][] examples = {
+                {"note.rtf", "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\f0\\fs24 Harbor rich text\\par}", "Harbor rich text"},
+                {"page.html", "<html><body><h1>Harbor heading</h1><script>doNotExtract()</script></body></html>", "Harbor heading"},
+                {"data.json", "{\"title\":\"Harbor JSON\"}", "Harbor JSON"},
+                {"data.csv", "title,amount\nHarbor CSV,42", "Harbor CSV"},
+                {"note.md", "# Harbor Markdown\n\nText content", "Harbor Markdown"},
+                {"mail.eml", "From: sender@example.test\r\nTo: receiver@example.test\r\nSubject: Harbor mail\r\n"
+                        + "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nHarbor email body", "Harbor email body"}
+        };
+        for (String[] example : examples) {
+            Path source = temporary.resolve(example[0]);
+            Files.writeString(source, example[1]);
+            var result = ExtractionEngine.extract(source, request(example[0]));
+            assertThat(result.errorCode()).as(example[0]).isNull();
+            assertThat(result.text()).as(example[0]).contains(example[2]).doesNotContain("doNotExtract()");
+        }
+    }
+
+    @Test
     void reportsTruncationRatherThanClaimingCompleteExtraction() throws Exception {
         Path text = temporary.resolve("long.txt");
         Files.writeString(text, "Harbor text content ".repeat(1000));
@@ -132,6 +152,16 @@ class ExtractionEngineTest {
     }
 
     @Test
+    void rejectsOversizedPdfRenderingDimensions() throws Exception {
+        Path pdf = temporary.resolve("huge.pdf");
+        try (var document = new PDDocument()) {
+            document.addPage(new PDPage(new org.apache.pdfbox.pdmodel.common.PDRectangle(100_000, 100_000)));
+            document.save(pdf.toFile());
+        }
+        assertThat(ExtractionEngine.extract(pdf, request("huge.pdf")).errorCode()).isEqualTo("IMAGE_LIMIT");
+    }
+
+    @Test
     @EnabledIfEnvironmentVariable(named = "TESSERACT_PATH", matches = ".+")
     void extractsRealImageAndMixedPdfWithLocalOcr() throws Exception {
         Path fixtures = Path.of("target", "smoke-fixtures");
@@ -144,6 +174,7 @@ class ExtractionEngineTest {
         assertThat(imageResult.errorCode()).isNull();
         assertThat(imageResult.text()).contains("TEXT HARBOR", "LOCAL OCR");
         Path pdf = fixtures.resolve("mixed.pdf");
+        Files.deleteIfExists(pdf);
         try (var document = new PDDocument()) {
             addTextPage(document, "Native page from Text Harbor");
             PDPage page = new PDPage();

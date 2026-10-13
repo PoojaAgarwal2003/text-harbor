@@ -133,9 +133,10 @@ export default function App() {
     uploadLock.current = true
     setUploading(true)
     setNotice('')
+    const failures: string[] = []
     for (const file of batch) {
       if (!file.size || file.size > capabilities.maxUploadBytes) {
-        setNotice(`${file.name}: choose a non-empty file under ${formatBytes(capabilities.maxUploadBytes)}.`)
+        failures.push(`${file.name}: choose a non-empty file under ${formatBytes(capabilities.maxUploadBytes)}.`)
         continue
       }
       const body = new FormData()
@@ -149,9 +150,10 @@ export default function App() {
         setTab('text')
         setConnectionError('')
       } catch (error) {
-        setNotice(`${file.name}: ${errorMessage(error)}`)
+        failures.push(`${file.name}: ${errorMessage(error)}`)
       }
     }
+    if (failures.length) setNotice(failures.join(' | '))
     setUploading(false)
     uploadLock.current = false
     if (input.current) input.current.value = ''

@@ -15,7 +15,7 @@ spring:
   jackson:
     default-property-inclusion: non_null
 extraction:
-  storage: ${TEXT_HARBOR_STORAGE:./.data}
+  storage: ${TEXT_HARBOR_STORAGE:${user.home}/.text-harbor/data}
   workers: 2
   queue-capacity: 8
   max-upload-bytes: 26214400
